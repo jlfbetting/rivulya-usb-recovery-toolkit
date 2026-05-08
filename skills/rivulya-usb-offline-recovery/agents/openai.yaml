@@ -1,0 +1,3 @@
+display_name: Rivulya USB Offline Recovery
+short_description: Use a dedicated USB stick to run signed recovery jobs on enrolled Ubuntu servers without network access.
+default_prompt: Use this skill when an Ubuntu server has lost network access, a Rivulya recovery stick is available, and the user needs an explicit USB handoff workflow for diagnostics or repair.
