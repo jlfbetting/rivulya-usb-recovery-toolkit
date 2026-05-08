@@ -49,8 +49,9 @@ The skill teaches agents to:
 - guide the explicit queue, move, wait, and read-results loop
 - keep recovery work focused on small signed jobs and returned evidence
 
-Installation details for Codex, Claude Code, GitHub Copilot, Skillfish, and
-generic `SKILL.md` agents are in [INSTALL-AGENTS.md](INSTALL-AGENTS.md).
+Installation details for Codex, Claude Code, GitHub Copilot, generic
+`SKILL.md` agents, and Skillfish-based skill installation are in
+[INSTALL-AGENTS.md](INSTALL-AGENTS.md).
 
 ## How It Works
 
