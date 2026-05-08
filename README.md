@@ -41,8 +41,10 @@ The toolkit contains:
 - `add-server-profile.sh`: adds more server profiles to an initialized stick.
 - `queue-job.sh`: signs and queues a job from the operator machine.
 - `read-results.sh`: mounts the stick and prints the latest result bundle.
+- `verify-toolkit.sh`: checks the local toolkit without USB hardware.
 - `host/`: server-side installer, runner, signal helper, and systemd unit.
 - `jobs/capture-network-state.sh`: sample diagnostic job for network failures.
+- `jobs/capture-system-baseline.sh`: sample read-only baseline diagnostic job.
 - `skills/rivulya-usb-offline-recovery/SKILL.md`: agent skill instructions.
 
 ## Threat Model And Trust Boundaries
@@ -90,6 +92,12 @@ Target server:
 ## Quick Start
 
 From the toolkit root on the operator machine:
+
+```bash
+bash ./verify-toolkit.sh
+```
+
+Then initialize a dedicated USB stick:
 
 ```bash
 sudo bash ./create-stick.sh
@@ -199,6 +207,13 @@ network loss. It writes files into the job result directory, including:
 
 It is diagnostic only. It does not modify network configuration.
 
+`jobs/capture-system-baseline.sh` is a broader read-only baseline job. It
+captures uptime, OS release, kernel command line, disk and mount state, block
+devices, failed systemd units, selected service status, high-priority journal
+lines, memory, and a process snapshot. Use it when the outage may involve more
+than networking or when you want a quick system overview before deciding on a
+repair job.
+
 ## Troubleshooting
 
 No USB disk is listed during initialization:
@@ -241,8 +256,15 @@ Results show a target mismatch:
 
 ## Uninstall Notes
 
-On a bootstrapped server, remove the installed service files and reload systemd
-and udev:
+On a bootstrapped server, use the uninstall helper copied onto the recovery
+stick:
+
+```bash
+sudo bash /mnt/rivulya-toolkey/rivulya-toolkey/host/uninstall-server-profile.sh
+```
+
+If the stick is not mounted, the helper does the same cleanup as these manual
+commands:
 
 ```bash
 sudo rm -f /etc/udev/rules.d/99-rivulya-toolkey.rules
@@ -266,11 +288,13 @@ need to keep.
 
 Before relying on the workflow for a real outage:
 
+- Run `bash verify-toolkit.sh` from the toolkit root.
 - Initialize a spare USB stick with `create-stick.sh`.
 - Create a server profile with the correct server ID and primary interface.
 - Bootstrap a test Ubuntu server from local console.
 - Reinsert the stick once and confirm the systemd unit triggers.
 - Queue `jobs/capture-network-state.sh` with the target server ID.
+- Queue `jobs/capture-system-baseline.sh` with the target server ID.
 - Move the stick to the server and wait at least 60 to 90 seconds.
 - Move the stick back and run `read-results.sh`.
 - Confirm the result bundle contains `status.env`, `meta.env`, `stdout.txt`,

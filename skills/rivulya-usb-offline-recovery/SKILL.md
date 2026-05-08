@@ -14,6 +14,7 @@ Use this skill when an Ubuntu server needs an offline recovery path through a de
 - enroll an Ubuntu server once from local console
 - queue signed diagnostic or repair jobs later when SSH or network access is unavailable
 - read returned result bundles from the stick
+- verify the local toolkit and remove a server bootstrap when needed
 
 Do not use this workflow when SSH, serial console, IPMI/iDRAC/iLO, cloud console, VPN, Tailscale, or another live access path is available and sufficient.
 
@@ -36,6 +37,12 @@ The toolkit must be available on the operator machine. If `TOOLKIT_DIR` is not a
 Assume commands are run from the toolkit root or with `TOOLKIT_DIR` set.
 
 ## Setup Commands
+
+Verify the local toolkit before first use:
+
+```bash
+bash "${TOOLKIT_DIR:-.}/verify-toolkit.sh"
+```
 
 Create a new dedicated stick:
 
@@ -87,6 +94,18 @@ Example:
 ```bash
 bash "${TOOLKIT_DIR:-.}/queue-job.sh" "${TOOLKIT_DIR:-.}/jobs/capture-network-state.sh" "capture network state" 600 server-id
 ```
+
+Use `jobs/capture-system-baseline.sh` when the issue may not be limited to networking, or when the user wants a read-only system overview before choosing a repair.
+
+## Uninstalling Bootstrap
+
+If the user wants to remove the server-side bootstrap from Ubuntu, ask them to mount the recovery stick on that server and run:
+
+```bash
+sudo bash /mnt/rivulya-toolkey/rivulya-toolkey/host/uninstall-server-profile.sh
+```
+
+Explain that this removes installed server-side files and reloads systemd/udev. It does not erase the USB stick, operator signing key, or existing result bundles.
 
 ## Guidance
 

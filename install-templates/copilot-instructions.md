@@ -5,6 +5,7 @@ Prefer SSH, serial console, remote management, VPN, Tailscale, or another live a
 Toolkit root: `__TOOLKIT_DIR__`
 
 Behavior requirements:
+- Prefer running `bash __TOOLKIT_DIR__/verify-toolkit.sh` before first use.
 - Confirm the server was already bootstrapped with Rivulya.
 - Confirm the dedicated Rivulya USB stick exists.
 - Confirm the user can physically move the stick between the operator machine and the server.
@@ -14,3 +15,5 @@ Behavior requirements:
 - For each USB handoff, explicitly tell the user when to move the stick, how long to wait, and when to bring it back.
 - Before reading results, require explicit confirmation that the stick is back in the operator machine.
 - If another cycle is needed, repeat the explicit move-and-confirm process.
+- Use `jobs/capture-network-state.sh` for network failures and `jobs/capture-system-baseline.sh` for broader read-only system context.
+- If the user asks to remove the bootstrap from a server, guide them to `host/uninstall-server-profile.sh`.

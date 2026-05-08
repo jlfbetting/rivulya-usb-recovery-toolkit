@@ -2,9 +2,13 @@
 set -euo pipefail
 
 repo_root=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
-tmp_dir="$repo_root/.test-output"
-rm -rf "$tmp_dir"
-mkdir -p "$tmp_dir"
+tmp_parent="$repo_root/.test-output"
+mkdir -p "$tmp_parent"
+tmp_dir=$(mktemp -d "$tmp_parent/run.XXXXXX")
+cleanup() {
+    rm -rf "$tmp_dir"
+}
+trap cleanup EXIT
 
 . "$repo_root/lib/toolkey-common.sh"
 
@@ -84,5 +88,7 @@ actual_hash=$(RIVULYA_TOOLKEY_HASH_FILE_ONLY=1 bash "$repo_root/host/runner.sh" 
 assert_eq "$expected_hash" "$actual_hash" "runner hashes staged job file"
 expect_fail env RIVULYA_TOOLKEY_VERIFY_HASH_ONLY=1 bash "$repo_root/host/runner.sh" "$hash_job" 0000000000000000000000000000000000000000000000000000000000000000
 RIVULYA_TOOLKEY_VERIFY_HASH_ONLY=1 bash "$repo_root/host/runner.sh" "$hash_job" "$expected_hash"
+
+SKIP_SELF_TESTS=1 bash "$repo_root/verify-toolkit.sh" > "$tmp_dir/verify-toolkit.txt"
 
 echo "All tests passed"

@@ -216,6 +216,7 @@ install -d -m 0755 \
 install -m 0755 "$kit_root/host/install-server-profile.sh" "$mount_point/rivulya-toolkey/host/install-server-profile.sh"
 install -m 0755 "$kit_root/host/runner.sh" "$mount_point/rivulya-toolkey/host/runner.sh"
 install -m 0755 "$kit_root/host/signal.sh" "$mount_point/rivulya-toolkey/host/signal.sh"
+install -m 0755 "$kit_root/host/uninstall-server-profile.sh" "$mount_point/rivulya-toolkey/host/uninstall-server-profile.sh"
 install -m 0644 "$kit_root/host/rivulya-toolkey@.service" "$mount_point/rivulya-toolkey/host/rivulya-toolkey@.service"
 install -m 0644 "$kit_root/lib/toolkey-common.sh" "$mount_point/rivulya-toolkey/common/toolkey-common.sh"
 
