@@ -11,8 +11,7 @@ tools such as Codex, Claude Code, and GitHub Copilot can guide the workflow.
 The intended pattern is: prefer a better live access path first, and only use
 the USB flow when offline handoff is the practical recovery path.
 
-This is still an experimental first public release. Also it is heavily vibe-coded. Read the safety model and
-limitations before using it on systems you depend on.
+This is still an experimental first public release. Also it is heavily vibe-coded. Read the safety model and limitations before using it on systems you depend on.
 
 ## Why This Toolkit
 
