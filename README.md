@@ -20,7 +20,7 @@ Rivulya is designed for one narrow problem: an operator needs a reliable,
 explicit, auditable way to move signed troubleshooting or recovery jobs to an
 Ubuntu server that currently cannot be managed normally over the network.
 
-The main value is not just “USB scripts.” It is the full workflow:
+The workflow is as follows:
 
 - create one dedicated recovery stick
 - enroll a server once from local console
