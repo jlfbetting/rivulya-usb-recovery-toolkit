@@ -1,0 +1,24 @@
+*.swp
+*.tmp
+*.bak
+
+# Local mounts and generated recovery-stick content
+rivulya-toolkey-mount/
+toolkey-mount/
+mount/
+profiles/
+results/
+archive/
+state/
+
+# Signing keys and local secrets
+*.key
+*.pem
+*_signing
+*_signing.pub
+
+# Test output
+.test-output/
+
+# Private local documentation and planning artifacts
+docs/
