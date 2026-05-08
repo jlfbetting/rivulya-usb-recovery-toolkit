@@ -12,10 +12,23 @@ owner_user=${SUDO_USER:-$USER}
 owner_home=$(getent passwd "$owner_user" | cut -d: -f6)
 mount_point_default=${TOOLKEY_MOUNT:-$owner_home/rivulya-toolkey-mount}
 label_default=${TOOLKEY_LABEL:-RIVULYA_TOOLKEY}
+key_path_default=${TOOLKEY_SIGNING_KEY:-$owner_home/.ssh/rivulya_toolkey_signing}
+bootstrap_self_test_timeout=${BOOTSTRAP_SELF_TEST_TIMEOUT_SEC:-180}
+bootstrap_self_test_script="$kit_root/jobs/bootstrap-self-test.sh"
+
+require_tools() {
+    local required
+    for required in awk install lsblk mount sha256sum ssh-keygen sync umount; do
+        command -v "$required" >/dev/null 2>&1 || {
+            echo "Missing required tool: $required" >&2
+            exit 1
+        }
+    done
+}
 
 find_toolkey_part() {
     local label=$1
-    lsblk -rno PATH,LABEL | awk -v wanted="$label" '$2 == wanted { print $1; exit }'
+    lsblk -lno PATH,LABEL | awk -v wanted="$label" '$2 == wanted { print $1; exit }'
 }
 
 write_profile_bundle() {
@@ -79,9 +92,13 @@ One-time setup on the Ubuntu server:
      sudo mount UUID=$fs_uuid /mnt/rivulya-toolkey
      sudo bash /mnt/rivulya-toolkey/rivulya-toolkey/profiles/$server_id/install-on-server.sh
      sudo umount /mnt/rivulya-toolkey
-3. Reinsert the stick once to confirm the service triggers.
+3. Reinsert the stick once. The server will automatically run the queued bootstrap self-test for $server_id.
+4. Move the stick back to the operator machine and run:
+    cd /path/to/rivulya-usb-recovery-toolkit
+    bash ./read-results.sh
+   Confirm that the latest result bundle is the bootstrap self-test for $server_id and completed successfully before relying on the toolkit for recovery work.
 
-After bootstrap, use this stick from the operator machine:
+After the bootstrap self-test passes, use this stick from the operator machine:
 - Queue signed jobs with:
     cd /path/to/rivulya-usb-recovery-toolkit
     bash ./queue-job.sh JOB_SCRIPT "description" 600 $server_id
@@ -101,11 +118,20 @@ EOF
     chown -R "$owner_user":"$owner_user" "$profile_dir"
 }
 
+require_tools
+
 read -r -p "Mount point [$mount_point_default]: " mount_point
 mount_point=${mount_point:-$mount_point_default}
 read -r -p "Toolkey label [$label_default]: " label
 label=${label:-$label_default}
 toolkey_validate_label "$label"
+read -r -p "Signing key path [$key_path_default]: " key_path
+key_path=${key_path:-$key_path_default}
+
+if [[ ! -f "$key_path" ]]; then
+    echo "Signing key not found: $key_path" >&2
+    exit 1
+fi
 
 toolkey_part=${TOOLKEY_PART:-$(find_toolkey_part "$label")}
 if [[ -z "$toolkey_part" ]]; then
@@ -136,11 +162,11 @@ fi
 toolkey_load_env_file "$stick_env" toolkey_validate_device_env_value
 
 while true; do
-    read -r -p "Server ID (blank to finish): " server_id_raw
+    read -r -p "Server ID you choose for this server profile (blank to finish, used to target jobs): " server_id_raw
     [[ -z "$server_id_raw" ]] && break
     server_id=$(toolkey_sanitize_id "$server_id_raw")
     if [[ -z "$server_id" ]]; then
-        echo "Server ID must contain at least one letter or number." >&2
+        echo "Server ID must contain at least one letter or number. Pick a stable label such as edge-node-01 or nas-01." >&2
         continue
     fi
     toolkey_validate_server_id "$server_id"
@@ -152,12 +178,14 @@ while true; do
         rm -rf "$profile_dir"
     fi
 
-    read -r -p "Primary interface on $server_id [enp1s0]: " default_iface
+    read -r -p "Primary interface hint on $server_id for diagnostics and LED blink [enp1s0]: " default_iface
     default_iface=${default_iface:-enp1s0}
     toolkey_validate_iface "$default_iface"
 
     write_profile_bundle "$mount_point" "$server_id" "$default_iface" "$owner_user" "$USB_LABEL" "$USB_FS_UUID" "$USB_VENDOR_ID" "$USB_MODEL_ID" "$USB_SERIAL_SHORT" "$JOB_SIGNING_PRINCIPAL"
+    bootstrap_job_dir=$(toolkey_queue_bootstrap_self_test_job "$mount_point/rivulya-toolkey/jobs" "$bootstrap_self_test_script" "$key_path" "$server_id" "$bootstrap_self_test_timeout")
     echo "Created profile bundle: $profile_dir"
+    echo "Queued bootstrap self-test: $(basename -- "$bootstrap_job_dir")"
 
 done
 

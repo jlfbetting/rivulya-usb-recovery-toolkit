@@ -12,7 +12,7 @@ toolkey_label=${TOOLKEY_LABEL:-RIVULYA_TOOLKEY}
 toolkey_validate_label "$toolkey_label"
 
 find_toolkey_part() {
-    lsblk -rno PATH,LABEL | awk -v wanted="$toolkey_label" '$2 == wanted { print $1; exit }'
+    lsblk -lno PATH,LABEL | awk -v wanted="$toolkey_label" '$2 == wanted { print $1; exit }'
 }
 
 toolkey_part=${TOOLKEY_PART:-$(find_toolkey_part)}

@@ -36,6 +36,7 @@ required_files=(
     host/signal.sh
     host/uninstall-server-profile.sh
     host/rivulya-toolkey@.service
+    jobs/bootstrap-self-test.sh
     jobs/capture-network-state.sh
     jobs/capture-system-baseline.sh
     skills/rivulya-usb-offline-recovery/SKILL.md
@@ -77,6 +78,7 @@ scripts=(
     host/runner.sh
     host/signal.sh
     host/uninstall-server-profile.sh
+    jobs/bootstrap-self-test.sh
     jobs/capture-network-state.sh
     jobs/capture-system-baseline.sh
     tests/run.sh

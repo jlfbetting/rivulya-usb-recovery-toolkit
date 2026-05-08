@@ -14,10 +14,12 @@ mount_point_default=${TOOLKEY_MOUNT:-$owner_home/rivulya-toolkey-mount}
 usb_label_default=${TOOLKEY_LABEL:-RIVULYA_TOOLKEY}
 job_principal=${JOB_SIGNING_PRINCIPAL:-rivulya-toolkey}
 key_path_default=${TOOLKEY_SIGNING_KEY:-$owner_home/.ssh/rivulya_toolkey_signing}
+bootstrap_self_test_timeout=${BOOTSTRAP_SELF_TEST_TIMEOUT_SEC:-180}
+bootstrap_self_test_script="$kit_root/jobs/bootstrap-self-test.sh"
 
 require_tools() {
     local required
-    for required in awk blkid findmnt grep install lsblk mkfs.ext4 mount partprobe sfdisk ssh-keygen sync udevadm umount wipefs; do
+    for required in awk blkid findmnt grep install lsblk mkfs.ext4 mount partprobe sfdisk sha256sum ssh-keygen sync udevadm umount wipefs; do
         command -v "$required" >/dev/null 2>&1 || {
             echo "Missing required tool: $required" >&2
             exit 1
@@ -30,7 +32,7 @@ partition_path_for_disk() {
     local part
     for _ in 1 2 3 4 5 6 7 8 9 10; do
         udevadm settle >/dev/null 2>&1 || true
-        part=$(lsblk -lnro PATH,TYPE "$disk" | awk '$2 == "part" { print $1; exit }')
+        part=$(lsblk -lno PATH,TYPE "$disk" | awk '$2 == "part" { print $1; exit }')
         if [[ -n "$part" ]]; then
             printf '%s\n' "$part"
             return 0
@@ -40,7 +42,7 @@ partition_path_for_disk() {
 }
 
 list_usb_disks() {
-    lsblk -dnro PATH,TRAN,SIZE,MODEL,SERIAL | awk '$2 == "usb" { $1=$1; print }'
+    lsblk -dno PATH,TRAN,SIZE,MODEL,SERIAL | awk '$2 == "usb" { $1=$1; print }'
 }
 
 write_profile_bundle() {
@@ -104,9 +106,13 @@ One-time setup on the Ubuntu server:
      sudo mount UUID=$fs_uuid /mnt/rivulya-toolkey
      sudo bash /mnt/rivulya-toolkey/rivulya-toolkey/profiles/$server_id/install-on-server.sh
      sudo umount /mnt/rivulya-toolkey
-3. Reinsert the stick once to confirm the service triggers.
+3. Reinsert the stick once. The server will automatically run the queued bootstrap self-test for $server_id.
+4. Move the stick back to the operator machine and run:
+    cd /path/to/rivulya-usb-recovery-toolkit
+    bash ./read-results.sh
+   Confirm that the latest result bundle is the bootstrap self-test for $server_id and completed successfully before relying on the toolkit for recovery work.
 
-After bootstrap, use this stick from the operator machine:
+After the bootstrap self-test passes, use this stick from the operator machine:
 - Queue signed jobs with:
     cd /path/to/rivulya-usb-recovery-toolkit
     bash ./queue-job.sh JOB_SCRIPT "description" 600 $server_id
@@ -178,7 +184,7 @@ chown "$owner_user":"$owner_user" "$key_path" "$key_path.pub"
 while read -r part_path; do
     [[ "$part_path" == "$disk_device" ]] && continue
     umount "$part_path" >/dev/null 2>&1 || true
-done < <(lsblk -lnro PATH "$disk_device")
+done < <(lsblk -lno PATH "$disk_device")
 
 wipefs -a "$disk_device"
 printf 'label: gpt\n, ,L\n' | sfdisk "$disk_device" >/dev/null
@@ -246,9 +252,10 @@ Trusted USB identity:
 
 Next steps:
 1. Create one or more server profiles on this stick.
-2. On each target server, run the matching profile's install-on-server.sh once from a local console.
-3. Queue signed jobs from the operator machine with queue-job.sh.
-4. Move the stick between machines and read results with read-results.sh.
+2. Each new server profile automatically queues a one-time bootstrap self-test job for that server.
+3. On each target server, run the matching profile's install-on-server.sh once from a local console.
+4. Reinsert the stick into that server once so the bootstrap self-test runs automatically.
+5. Move the stick back to the operator machine and confirm the self-test result with read-results.sh before queuing other jobs.
 EOF
 
 profile_count=0
@@ -258,20 +265,22 @@ while true; do
     [[ "$create_profile" =~ ^[Nn]$ ]] && break
 
     while true; do
-        read -r -p "Server ID (example: edge-node-01): " server_id_raw
+        read -r -p "Server ID you choose for this server profile (used to target jobs, example: edge-node-01): " server_id_raw
         server_id=$(toolkey_sanitize_id "$server_id_raw")
         if [[ -n "$server_id" ]]; then
             toolkey_validate_server_id "$server_id"
             break
         fi
-        echo "Server ID cannot be empty." >&2
+        echo "Server ID cannot be empty. Pick a stable label such as edge-node-01 or nas-01." >&2
     done
 
-    read -r -p "Primary interface on $server_id [enp1s0]: " default_iface
+    read -r -p "Primary interface hint on $server_id for diagnostics and LED blink [enp1s0]: " default_iface
     default_iface=${default_iface:-enp1s0}
     toolkey_validate_iface "$default_iface"
 
     write_profile_bundle "$mount_point" "$server_id" "$default_iface" "$usb_label" "$fs_uuid" "$vendor_id" "$model_id" "$serial_short" "$job_principal" "$owner_user"
+    bootstrap_job_dir=$(toolkey_queue_bootstrap_self_test_job "$mount_point/rivulya-toolkey/jobs" "$bootstrap_self_test_script" "$key_path" "$server_id" "$bootstrap_self_test_timeout")
+    echo "Queued bootstrap self-test: $(basename -- "$bootstrap_job_dir")"
     profile_count=$((profile_count + 1))
 
     read -r -p "Add another server profile? [y/N]: " again

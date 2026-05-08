@@ -89,6 +89,37 @@ assert_eq "$expected_hash" "$actual_hash" "runner hashes staged job file"
 expect_fail env RIVULYA_TOOLKEY_VERIFY_HASH_ONLY=1 bash "$repo_root/host/runner.sh" "$hash_job" 0000000000000000000000000000000000000000000000000000000000000000
 RIVULYA_TOOLKEY_VERIFY_HASH_ONLY=1 bash "$repo_root/host/runner.sh" "$hash_job" "$expected_hash"
 
+jobs_root="$tmp_dir/jobs"
+install -d -m 0755 "$jobs_root"
+signing_key="$tmp_dir/test-signing-key"
+ssh-keygen -q -t ed25519 -N '' -C rivulya-toolkey -f "$signing_key" >/dev/null
+queued_job_dir=$(toolkey_queue_signed_job "$jobs_root" "$hash_job" "bootstrap self-test" 90 "$signing_key" edge-node-01 job-20260508-120001-5678)
+assert_eq "$jobs_root/job-20260508-120001-5678" "$queued_job_dir" "queued job dir"
+toolkey_load_env_file "$queued_job_dir/manifest.env" toolkey_validate_manifest_value
+assert_eq "edge-node-01" "$TARGET_SERVER_ID" "queued job target server id"
+assert_eq "90" "$TIMEOUT_SEC" "queued job timeout"
+assert_eq "bootstrap self-test" "$DESCRIPTION" "queued job description"
+[[ -f "$queued_job_dir/manifest.sig" ]] || {
+    echo "FAIL missing manifest signature" >&2
+    exit 1
+}
+expect_fail toolkey_queue_signed_job "$jobs_root" "$hash_job" "bootstrap self-test" 90 "$signing_key" '../bad' job-20260508-120002-9012
+
+bootstrap_script="$repo_root/jobs/bootstrap-self-test.sh"
+bootstrap_description=$(toolkey_bootstrap_self_test_description edge-node-01)
+assert_eq "bootstrap self-test for edge-node-01" "$bootstrap_description" "bootstrap self-test description"
+bootstrap_job_dir=$(toolkey_queue_bootstrap_self_test_job "$jobs_root" "$bootstrap_script" "$signing_key" edge-node-01 180)
+toolkey_load_env_file "$bootstrap_job_dir/manifest.env" toolkey_validate_manifest_value
+assert_eq "bootstrap self-test for edge-node-01" "$DESCRIPTION" "bootstrap helper description"
+assert_eq "180" "$TIMEOUT_SEC" "bootstrap helper timeout"
+pending_before=$(find "$jobs_root" -mindepth 1 -maxdepth 1 -type d | wc -l | awk '{ print $1 }')
+assert_eq "2" "$pending_before" "pending jobs before bootstrap refresh"
+bootstrap_job_dir=$(toolkey_queue_bootstrap_self_test_job "$jobs_root" "$bootstrap_script" "$signing_key" edge-node-01 180)
+pending_after=$(find "$jobs_root" -mindepth 1 -maxdepth 1 -type d | wc -l | awk '{ print $1 }')
+assert_eq "2" "$pending_after" "pending jobs after bootstrap refresh"
+toolkey_load_env_file "$bootstrap_job_dir/manifest.env" toolkey_validate_manifest_value
+assert_eq "bootstrap self-test for edge-node-01" "$DESCRIPTION" "bootstrap helper refreshed description"
+
 SKIP_SELF_TESTS=1 bash "$repo_root/verify-toolkit.sh" > "$tmp_dir/verify-toolkit.txt"
 
 echo "All tests passed"

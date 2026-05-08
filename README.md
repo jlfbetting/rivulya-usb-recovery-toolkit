@@ -43,6 +43,7 @@ The toolkit contains:
 - `read-results.sh`: mounts the stick and prints the latest result bundle.
 - `verify-toolkit.sh`: checks the local toolkit without USB hardware.
 - `host/`: server-side installer, runner, signal helper, and systemd unit.
+- `jobs/bootstrap-self-test.sh`: one-time proof job queued automatically for each new server profile.
 - `jobs/capture-network-state.sh`: sample diagnostic job for network failures.
 - `jobs/capture-system-baseline.sh`: sample read-only baseline diagnostic job.
 - `skills/rivulya-usb-offline-recovery/SKILL.md`: agent skill instructions.
@@ -105,7 +106,9 @@ sudo bash ./create-stick.sh
 
 The initializer lists attached USB disks, asks which one to erase, creates an
 ext4 filesystem, creates or reuses an Ed25519 signing key, copies the server-side
-runner to the stick, and optionally creates one or more server profiles.
+runner to the stick, and optionally creates one or more server profiles. Each
+new server profile also queues a one-time signed bootstrap self-test job that
+the server will run on first reinsertion after bootstrap.
 
 To add another server profile later:
 
@@ -157,9 +160,16 @@ The installer copies the runner, signal helper, allowed signers file, device
 identity file, systemd unit, and udev rule onto the server. After that, inserting
 the enrolled USB stick triggers `rivulya-toolkey@.service` automatically.
 
+Each newly created server profile also stages a targeted bootstrap self-test job
+on the stick. After you run `install-on-server.sh`, reinsert the stick into that
+same server once. The runner should execute the bootstrap self-test automatically
+and write a result bundle back to the stick. Move the stick back to the operator
+machine and run `bash ./read-results.sh` to confirm that the bootstrap self-test
+completed successfully before relying on the toolkit for later recovery jobs.
+
 ## Queue And Read Result Loop
 
-Each recovery cycle is explicit:
+After bootstrap is confirmed, each recovery cycle is explicit:
 
 1. Insert the dedicated stick into the operator machine.
 2. Queue one focused signed job with `queue-job.sh`.
@@ -172,7 +182,10 @@ Each recovery cycle is explicit:
    written by the job.
 
 The runner archives processed jobs under `rivulya-toolkey/archive` and writes
-result bundles under `rivulya-toolkey/results`.
+result bundles under `rivulya-toolkey/results`. That same archive behavior is
+what makes the automatically queued bootstrap self-test a one-time check: once
+the first successful insertion processes it, it will not run again unless you
+recreate or overwrite the server profile.
 
 ## Multi-Server Stick Usage
 
@@ -186,8 +199,20 @@ bash ./queue-job.sh ./jobs/capture-network-state.sh "capture network state" 600 
 If the target server ID does not match the server that receives the stick, the
 runner skips the job and records `status=target_mismatch` in the stick state.
 
+You choose the server ID yourself when creating the server profile. It is just a
+stable label used by the operator and the signed job manifests to target the
+right server profile. Pick something easy to recognize at a console.
+
 Use server IDs that are easy to recognize at a console, such as `edge-node-01`,
 `nas-01`, or `lab-router-02`.
+
+When creating a server profile, the script also asks for a primary interface.
+That value is only a hint. It is passed to the sample network diagnostic job so
+it can prefer the expected NIC, and it is also used by the local signal helper
+to blink link lights with `ethtool -p` when possible. A wrong value does not
+break enrollment, trust, or the signed job flow. If the hint is wrong or the
+interface does not exist, the sample network job falls back to auto-detecting a
+physical interface.
 
 ## Included Sample Diagnostic Job
 
@@ -206,6 +231,13 @@ network loss. It writes files into the job result directory, including:
 - `ethtool` and driver path data for the detected physical interface
 
 It is diagnostic only. It does not modify network configuration.
+
+`jobs/bootstrap-self-test.sh` is queued automatically for each new or updated
+server profile. It is a read-only proof job that records hostname, server ID,
+kernel, required installed bootstrap files, and visibility of the mounted
+toolkey layout. A successful result bundle shows that the server bootstrap, job
+signature verification, job execution path, and write-back to the USB stick are
+all functioning together.
 
 `jobs/capture-system-baseline.sh` is a broader read-only baseline job. It
 captures uptime, OS release, kernel command line, disk and mount state, block

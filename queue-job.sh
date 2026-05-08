@@ -26,7 +26,7 @@ if [[ -n "$target_server_id" ]]; then
 fi
 
 find_toolkey_part() {
-    lsblk -rno PATH,LABEL | awk -v wanted="$toolkey_label" '$2 == wanted { print $1; exit }'
+    lsblk -lno PATH,LABEL | awk -v wanted="$toolkey_label" '$2 == wanted { print $1; exit }'
 }
 
 toolkey_part=${TOOLKEY_PART:-$(find_toolkey_part)}
@@ -70,26 +70,7 @@ if [[ ! -d "$jobs_root" ]]; then
 fi
 
 job_id="job-$(date +%Y%m%d-%H%M%S)-$$"
-job_dir="$jobs_root/$job_id"
-install -d -m 0755 "$job_dir"
-install -m 0644 "$script_file" "$job_dir/job.sh"
-job_sha256=$(sha256sum "$job_dir/job.sh" | awk '{ print $1 }')
-
-{
-    toolkey_write_env_line JOB_ID "$job_id"
-    toolkey_write_env_line DESCRIPTION "$description"
-    toolkey_write_env_line ENTRYPOINT job.sh
-    toolkey_write_env_line INTERPRETER /bin/bash
-    toolkey_write_env_line TIMEOUT_SEC "$timeout_sec"
-    toolkey_write_env_line JOB_SHA256 "$job_sha256"
-    if [[ -n "$target_server_id" ]]; then
-        toolkey_write_env_line TARGET_SERVER_ID "$target_server_id"
-    fi
-} > "$job_dir/manifest.env"
-
-printf '%s  job.sh\n' "$job_sha256" > "$job_dir/checksums.txt"
-ssh-keygen -Y sign -f "$key_path" -n file "$job_dir/manifest.env" >/dev/null
-mv "$job_dir/manifest.env.sig" "$job_dir/manifest.sig"
+job_dir=$(toolkey_queue_signed_job "$jobs_root" "$script_file" "$description" "$timeout_sec" "$key_path" "$target_server_id" "$job_id")
 
 sync
 
