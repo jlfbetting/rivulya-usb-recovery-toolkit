@@ -328,18 +328,3 @@ Install notes for Codex, Claude Code, GitHub Copilot, Skillfish, and generic
 does not replace operator judgment; it teaches agents to prefer SSH, serial, or
 remote management when available, then guide the explicit USB handoff workflow
 when offline recovery is the right option.
-
-## Discoverability Metadata To Set After Push
-
-After publishing the repository, set metadata on GitHub or your forge:
-
-- Description: `Offline Ubuntu server recovery over USB with signed jobs and an agent skill`
-- Topics: `ubuntu`, `linux`, `usb`, `recovery`, `offline-recovery`,
-  `server-recovery`, `systemd`, `udev`, `bash`, `network-diagnostics`,
-  `signed-jobs`, `codex`, `claude-code`, `github-copilot`, `skillfish`,
-  `agent-skill`
-- Homepage or project links: point to the public README and release notes.
-
-These terms make the project easier to find for people searching for offline
-server recovery over USB, signed recovery scripts, and agent-assisted recovery
-workflows.
