@@ -116,7 +116,13 @@ To add another server profile later:
 sudo bash ./add-server-profile.sh
 ```
 
-To queue the included diagnostic job for one server:
+To queue the included diagnostic job without targeting a specific server:
+
+```bash
+bash ./queue-job.sh ./jobs/capture-network-state.sh "capture network state" 600
+```
+
+To target one specific enrolled server explicitly:
 
 ```bash
 bash ./queue-job.sh ./jobs/capture-network-state.sh "capture network state" 600 edge-node-01
@@ -139,22 +145,44 @@ Bootstrap must happen before the server loses the access path you rely on. If a
 server was never enrolled, this toolkit cannot magically install itself after
 the server is already unreachable.
 
+Mounting the stick on the server requires `sudo`. That is expected: mount
+points such as `/mnt` are root-owned, and a shell script stored on the USB stick
+cannot run until the filesystem is mounted somewhere first.
+
 For each server profile, the stick contains:
 
 ```text
-rivulya-toolkey/profiles/<server-id>/install-on-server.sh
 rivulya-toolkey/profiles/<server-id>/SERVER-SETUP.txt
+rivulya-toolkey/profiles/<server-id>/install-on-server.sh
+BOOTSTRAP-ON-SERVER.sh
 ```
 
-On the target server, use the exact commands printed in that profile's
-`SERVER-SETUP.txt`. They follow this shape:
+`SERVER-SETUP.txt` is just a human-readable reference copy. After the stick is
+mounted, the primary entrypoint is `BOOTSTRAP-ON-SERVER.sh` from the root of the
+mounted stick.
+
+For a stick with one server profile, the shortest bootstrap flow on the target
+server is:
 
 ```bash
 sudo mkdir -p /mnt/rivulya-toolkey
 sudo mount UUID=<filesystem-uuid-from-profile> /mnt/rivulya-toolkey
-sudo bash /mnt/rivulya-toolkey/rivulya-toolkey/profiles/<server-id>/install-on-server.sh
+sudo bash /mnt/rivulya-toolkey/BOOTSTRAP-ON-SERVER.sh
 sudo umount /mnt/rivulya-toolkey
 ```
+
+If the stick has multiple server profiles, pass the chosen server ID:
+
+```bash
+sudo mkdir -p /mnt/rivulya-toolkey
+sudo mount UUID=<filesystem-uuid-from-profile> /mnt/rivulya-toolkey
+sudo bash /mnt/rivulya-toolkey/BOOTSTRAP-ON-SERVER.sh <server-id>
+sudo umount /mnt/rivulya-toolkey
+```
+
+The exact profile-specific install script still exists under
+`rivulya-toolkey/profiles/<server-id>/install-on-server.sh`, but it is now the
+underlying implementation detail rather than the first command you need to type.
 
 The installer copies the runner, signal helper, allowed signers file, device
 identity file, systemd unit, and udev rule onto the server. After that, inserting
@@ -166,6 +194,8 @@ same server once. The runner should execute the bootstrap self-test automaticall
 and write a result bundle back to the stick. Move the stick back to the operator
 machine and run `bash ./read-results.sh` to confirm that the bootstrap self-test
 completed successfully before relying on the toolkit for later recovery jobs.
+In the `--- bootstrap summary` section, `bootstrap_self_test=PASS` together with
+`checks_with_issues=0` is the concise success signal.
 
 ## Queue And Read Result Loop
 
@@ -186,6 +216,10 @@ result bundles under `rivulya-toolkey/results`. That same archive behavior is
 what makes the automatically queued bootstrap self-test a one-time check: once
 the first successful insertion processes it, it will not run again unless you
 recreate or overwrite the server profile.
+
+The fourth `queue-job.sh` argument is optional. If you omit it, the job is
+server-agnostic and any enrolled server that receives the stick can run it. If
+you include a server ID, only that matching enrolled server will execute it.
 
 ## Multi-Server Stick Usage
 

@@ -31,6 +31,88 @@ find_toolkey_part() {
     lsblk -lno PATH,LABEL | awk -v wanted="$label" '$2 == wanted { print $1; exit }'
 }
 
+write_bootstrap_launcher() {
+    local mount_point=$1
+    local owner_user=$2
+
+    cat > "$mount_point/BOOTSTRAP-ON-SERVER.sh" <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+
+script_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+profiles_root="$script_dir/rivulya-toolkey/profiles"
+
+usage() {
+    cat <<USAGE
+usage: $0 [server_id]
+
+Run this after mounting the Rivulya USB stick on the target server.
+
+- If the stick contains exactly one server profile, the argument is optional.
+- If the stick contains multiple server profiles, pass the intended server_id.
+
+Examples:
+  sudo bash /mnt/rivulya-toolkey/BOOTSTRAP-ON-SERVER.sh
+  sudo bash /mnt/rivulya-toolkey/BOOTSTRAP-ON-SERVER.sh edge-node-01
+USAGE
+}
+
+[[ -d "$profiles_root" ]] || {
+    echo "Profiles directory not found: $profiles_root" >&2
+    exit 1
+}
+
+if [[ ${1:-} == --help || ${1:-} == -h ]]; then
+    usage
+    exit 0
+fi
+
+if [[ $# -gt 1 ]]; then
+    usage >&2
+    exit 2
+fi
+
+shopt -s nullglob
+profiles=()
+for path in "$profiles_root"/*; do
+    [[ -d "$path" ]] || continue
+    profiles+=("$(basename -- "$path")")
+done
+shopt -u nullglob
+
+if [[ ${#profiles[@]} -eq 0 ]]; then
+    echo "No server profiles were found on this stick." >&2
+    exit 1
+fi
+
+server_id=${1:-}
+if [[ -z "$server_id" ]]; then
+    if [[ ${#profiles[@]} -eq 1 ]]; then
+        server_id=${profiles[0]}
+    else
+        echo "Multiple server profiles are available on this stick:" >&2
+        printf '  %s\n' "${profiles[@]}" >&2
+        echo >&2
+        usage >&2
+        exit 2
+    fi
+fi
+
+profile_script="$profiles_root/$server_id/install-on-server.sh"
+if [[ ! -f "$profile_script" ]]; then
+    echo "Server profile not found: $server_id" >&2
+    echo "Available profiles:" >&2
+    printf '  %s\n' "${profiles[@]}" >&2
+    exit 1
+fi
+
+exec bash "$profile_script"
+EOF
+
+    chmod 0755 "$mount_point/BOOTSTRAP-ON-SERVER.sh"
+    chown "$owner_user":"$owner_user" "$mount_point/BOOTSTRAP-ON-SERVER.sh"
+}
+
 write_profile_bundle() {
     local mount_point=$1
     local server_id=$2
@@ -78,6 +160,11 @@ EOF
     cat > "$profile_dir/SERVER-SETUP.txt" <<EOF
 Rivulya USB recovery bootstrap for server profile: $server_id
 
+This file is a reference copy. After mounting the stick on the server, the
+primary entrypoint is:
+
+    sudo bash /mnt/rivulya-toolkey/BOOTSTRAP-ON-SERVER.sh $server_id
+
 Trusted USB stick identity:
   vendor_id:    $vendor_id
   model_id:     $model_id
@@ -90,7 +177,7 @@ One-time setup on the Ubuntu server:
 2. From a local console on the server, run:
      sudo mkdir -p /mnt/rivulya-toolkey
      sudo mount UUID=$fs_uuid /mnt/rivulya-toolkey
-     sudo bash /mnt/rivulya-toolkey/rivulya-toolkey/profiles/$server_id/install-on-server.sh
+    sudo bash /mnt/rivulya-toolkey/BOOTSTRAP-ON-SERVER.sh $server_id
      sudo umount /mnt/rivulya-toolkey
 3. Reinsert the stick once. The server will automatically run the queued bootstrap self-test for $server_id.
 4. Move the stick back to the operator machine and run:
@@ -100,6 +187,9 @@ One-time setup on the Ubuntu server:
 
 After the bootstrap self-test passes, use this stick from the operator machine:
 - Queue signed jobs with:
+    cd /path/to/rivulya-usb-recovery-toolkit
+    bash ./queue-job.sh JOB_SCRIPT "description" 600
+- Or target this specific server explicitly:
     cd /path/to/rivulya-usb-recovery-toolkit
     bash ./queue-job.sh JOB_SCRIPT "description" 600 $server_id
 - Read the latest results with:
@@ -158,6 +248,8 @@ if [[ ! -f "$stick_env" ]]; then
     echo "Stick metadata not found: $stick_env" >&2
     exit 1
 fi
+
+write_bootstrap_launcher "$mount_point" "$owner_user"
 
 toolkey_load_env_file "$stick_env" toolkey_validate_device_env_value
 
