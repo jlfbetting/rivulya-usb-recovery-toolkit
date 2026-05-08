@@ -19,6 +19,3 @@ state/
 
 # Test output
 .test-output/
-
-# Private local documentation and planning artifacts
-docs/
