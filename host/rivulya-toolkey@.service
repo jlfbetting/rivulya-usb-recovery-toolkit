@@ -1,0 +1,23 @@
+[Unit]
+Description=Process Rivulya trusted tool key on /dev/%I
+BindsTo=dev-%i.device
+After=dev-%i.device systemd-udevd.service local-fs.target
+ConditionPathExists=/etc/rivulya-toolkey/device.env
+
+[Service]
+Type=oneshot
+RuntimeDirectory=rivulya-toolkey
+RuntimeDirectoryMode=0755
+ExecStart=/usr/local/lib/rivulya-toolkey/runner.sh /dev/%I
+TimeoutStartSec=15min
+IOSchedulingClass=best-effort
+IOSchedulingPriority=7
+Nice=10
+PrivateTmp=yes
+ProtectSystem=full
+ProtectHome=read-only
+ReadWritePaths=/run/rivulya-toolkey /var/log /etc/rivulya-toolkey
+NoNewPrivileges=yes
+
+[Install]
+WantedBy=multi-user.target
